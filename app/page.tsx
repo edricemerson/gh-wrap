@@ -9,11 +9,6 @@ export default async function Home() {
     const session = await auth();
 
     if (session) {
-        const res = await fetch("https://api.github.com/user/repos?sort=updated&per_page=100", {
-            headers: {
-                Authorization: `Bearer ${session.accessToken}`,
-            },
-        });
         let repos: {
             id: number;
             name: string;
@@ -24,10 +19,20 @@ export default async function Home() {
             pushed_at: string;
         }[] = [];
 
-        if (res.ok) {
-            repos = await res.json();
-        } else {
-            console.error("Failed to fetch repos:", res.status, await res.text());
+        try {
+            const res = await fetch("https://api.github.com/user/repos?sort=updated&per_page=100", {
+                headers: {
+                    Authorization: `Bearer ${session.accessToken}`,
+                },
+            });
+
+            if (res.ok) {
+                repos = await res.json();
+            } else {
+                console.error("Failed to fetch repos:", res.status, await res.text());
+            }
+        } catch (err) {
+            console.error("Failed to reach GitHub API:", err);
         }
 
         let stats = null;

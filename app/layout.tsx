@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Yellowtail } from "next/font/google";
+import { Geist, Geist_Mono, Anton } from "next/font/google";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -12,8 +12,8 @@ const geistMono = Geist_Mono({
     subsets: ["latin"],
 });
 
-const yellowtail = Yellowtail({
-    variable: "--font-yellowtail",
+const anton = Anton({
+    variable: "--font-anton",
     subsets: ["latin"],
     weight: "400",
 });
@@ -31,7 +31,7 @@ export default function RootLayout({
     return (
         <html
             lang="en"
-            className={`${geistSans.variable} ${geistMono.variable} ${yellowtail.variable} h-full antialiased`}
+            className={`${geistSans.variable} ${geistMono.variable} ${anton.variable} h-full antialiased`}
         >
             <body className="min-h-full flex flex-col">{children}</body>
         </html>

@@ -92,6 +92,30 @@ const CONCURRENCY = 5;
 const MAX_COMMIT_PAGES = 5;
 const GRAVEYARD_THRESHOLD_MS = 1000 * 60 * 60 * 24 * 2;
 
+function parseLocalDateParts(dateStr: string): {
+    hour: number;
+    dayOfWeek: number;
+    dateOnly: string;
+} {
+    const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})/);
+
+    if (!match) {
+        const fallback = new Date(dateStr);
+        return {
+            hour: fallback.getUTCHours(),
+            dayOfWeek: fallback.getUTCDay(),
+            dateOnly: dateStr.slice(0, 10),
+        };
+    }
+
+    const [, year, month, day, hour] = match;
+    const dayOfWeek = new Date(
+        Date.UTC(Number(year), Number(month) - 1, Number(day))
+    ).getUTCDay();
+
+    return { hour: Number(hour), dayOfWeek, dateOnly: `${year}-${month}-${day}` };
+}
+
 function ghFetch(url: string, accessToken: string) {
     return fetch(url, {
         headers: {
@@ -294,10 +318,10 @@ export async function computeWrapStats(
                 const message = c.commit?.message ?? "";
 
                 if (dateStr) {
-                    const d = new Date(dateStr);
-                    dayCounts[d.getUTCDay()]++;
-                    hourCounts[d.getUTCHours()]++;
-                    commitDates.add(dateStr.slice(0, 10));
+                    const { hour, dayOfWeek, dateOnly } = parseLocalDateParts(dateStr);
+                    dayCounts[dayOfWeek]++;
+                    hourCounts[hour]++;
+                    commitDates.add(dateOnly);
                 }
 
                 totalCommits++;
@@ -325,7 +349,7 @@ export async function computeWrapStats(
     const totalBytes = Object.values(languageBytes).reduce((a, b) => a + b, 0);
     const topLanguages = Object.entries(languageBytes)
         .sort((a, b) => b[1] - a[1])
-        .slice(0, 3)
+        .slice(0, 8)
         .map(([name, bytes]) => ({
             name,
             bytes,
@@ -481,7 +505,7 @@ export async function computeWrapStats(
             newestRepo,
             totalStars,
             graveyardCount: graveyardRepos.length,
-            graveyardRepos: graveyardRepos.slice(0, 3),
+            graveyardRepos,
         },
         archetype,
         social: {
