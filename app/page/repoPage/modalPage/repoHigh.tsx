@@ -61,17 +61,31 @@ function StatRow({
     icon,
     label,
     value,
+    href,
 }: {
     icon: IconName;
     label: string;
     value: string;
+    href?: string;
 }) {
     return (
         <div className="flex items-start gap-3">
             <HighlightIcon name={icon} className="w-5 h-5 text-gray-300 shrink-0 mt-0.5" />
             <div>
                 <div className="text-gray-400 text-xs">{label}</div>
-                <div className="text-gray-100 font-semibold">{value}</div>
+                {href ? (
+                    <a
+                        href={href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-gray-100 font-semibold hover:text-white hover:underline transition-colors duration-300"
+                    >
+                        {value}
+                    </a>
+                ) : (
+                    <div className="text-gray-100 font-semibold">{value}</div>
+                )}
             </div>
         </div>
     );
@@ -117,6 +131,11 @@ function RepoHighlightsModal({
                                 ? `${highlights.mostStarredRepo.name} (${highlights.mostStarredRepo.stars}★)`
                                 : "—"
                         }
+                        href={
+                            highlights.mostStarredRepo
+                                ? `https://github.com/${highlights.mostStarredRepo.fullName}`
+                                : undefined
+                        }
                     />
                     <StatRow
                         icon="target"
@@ -126,11 +145,21 @@ function RepoHighlightsModal({
                                 ? `${highlights.babyRepo.name} (${highlights.babyRepo.commits} commits)`
                                 : "—"
                         }
+                        href={
+                            highlights.babyRepo
+                                ? `https://github.com/${highlights.babyRepo.fullName}`
+                                : undefined
+                        }
                     />
                     <StatRow
                         icon="sparkle"
                         label="Newest repo"
                         value={highlights.newestRepo?.name ?? "—"}
+                        href={
+                            highlights.newestRepo
+                                ? `https://github.com/${highlights.newestRepo.fullName}`
+                                : undefined
+                        }
                     />
 
                     <div className="flex items-center justify-between pt-4 border-t border-gray-800">
@@ -156,13 +185,17 @@ function RepoHighlightsModal({
                                 </div>
                                 {highlights.graveyardRepos.length > 0 ? (
                                     <div className="flex flex-wrap gap-2 mt-2">
-                                        {highlights.graveyardRepos.map((name) => (
-                                            <span
-                                                key={name}
-                                                className="text-gray-200 text-xs bg-gray-800 border border-gray-700 rounded-full px-2.5 py-1"
+                                        {highlights.graveyardRepos.map((repo) => (
+                                            <a
+                                                key={repo.fullName}
+                                                href={`https://github.com/${repo.fullName}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                onClick={(e) => e.stopPropagation()}
+                                                className="text-gray-200 text-xs bg-gray-800 border border-gray-700 rounded-full px-2.5 py-1 hover:bg-gray-700 hover:text-white transition-colors duration-300"
                                             >
-                                                {name}
-                                            </span>
+                                                {repo.name}
+                                            </a>
                                         ))}
                                     </div>
                                 ) : (
@@ -236,7 +269,10 @@ export default function RepoHighlightsCard({ stats }: { stats: WrapStats | null 
                                 </div>
                                 {stats.highlights.graveyardRepos.length > 0 && (
                                     <div className="text-gray-300">
-                                        {stats.highlights.graveyardRepos.slice(0, 3).join(", ")}
+                                        {stats.highlights.graveyardRepos
+                                            .slice(0, 3)
+                                            .map((r) => r.name)
+                                            .join(", ")}
                                     </div>
                                 )}
                             </div>

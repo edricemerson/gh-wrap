@@ -8,6 +8,7 @@ type RepoLite = {
 };
 
 type GithubCommit = {
+    sha?: string;
     commit?: {
         author?: { date?: string };
         message?: string;
@@ -42,6 +43,7 @@ export type WrapStats = {
         wipCount: number;
         oopsCount: number;
         longestMessage: string;
+        lastCommit: { message: string; date: string; repoName: string; fullName: string; sha: string } | null;
     };
     volume: {
         totalCommits: number;
@@ -52,12 +54,12 @@ export type WrapStats = {
         longestStreak: number;
     };
     highlights: {
-        mostStarredRepo: { name: string; stars: number } | null;
-        babyRepo: { name: string; commits: number } | null;
-        newestRepo: { name: string; createdAt: string } | null;
+        mostStarredRepo: { name: string; fullName: string; stars: number } | null;
+        babyRepo: { name: string; fullName: string; commits: number } | null;
+        newestRepo: { name: string; fullName: string; createdAt: string } | null;
         totalStars: number;
         graveyardCount: number;
-        graveyardRepos: string[];
+        graveyardRepos: { name: string; fullName: string }[];
     };
     archetype: {
         primary: { title: string; description: string };
@@ -252,6 +254,8 @@ export async function computeWrapStats(
     let totalCommits = 0;
     let totalMessageLength = 0;
     let longestMessage = "";
+    let lastCommit: { message: string; date: string; repoName: string; fullName: string; sha: string } | null = null;
+    let lastCommitTime = -Infinity;
     let fixCount = 0;
     let wipCount = 0;
     let oopsCount = 0;
@@ -289,8 +293,10 @@ export async function computeWrapStats(
         }
 
         if (contributorsRes?.ok) {
-            const data: ContributorStats[] = await contributorsRes.json();
-            const mine = data.find((c) => c.author?.login === login);
+            const data: unknown = await contributorsRes.json();
+            const mine = Array.isArray(data)
+                ? (data as ContributorStats[]).find((c) => c.author?.login === login)
+                : undefined;
 
             for (const week of mine?.weeks ?? []) {
                 if (week.w >= yearStart && week.w < yearEnd) {
@@ -322,6 +328,18 @@ export async function computeWrapStats(
                     dayCounts[dayOfWeek]++;
                     hourCounts[hour]++;
                     commitDates.add(dateOnly);
+
+                    const commitTime = new Date(dateStr).getTime();
+                    if (commitTime > lastCommitTime) {
+                        lastCommitTime = commitTime;
+                        lastCommit = {
+                            message,
+                            date: dateStr,
+                            repoName: repo.name,
+                            fullName: repo.full_name,
+                            sha: c.sha ?? "",
+                        };
+                    }
                 }
 
                 totalCommits++;
@@ -389,22 +407,24 @@ export async function computeWrapStats(
         Object.entries(wordCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
 
     // --- Repo highlights ---
-    let mostStarredRepo: { name: string; stars: number } | null = null;
-    let newestRepo: { name: string; createdAt: string } | null = null;
+    let mostStarredRepo: { name: string; fullName: string; stars: number } | null = null;
+    let newestRepo: { name: string; fullName: string; createdAt: string } | null = null;
     let totalStars = 0;
-    const graveyardRepos: string[] = [];
+    const graveyardRepos: { name: string; fullName: string }[] = [];
+    const repoFullNames: Record<string, string> = {};
 
     for (const repo of repos) {
         const stars = repo.stargazers_count ?? 0;
         totalStars += stars;
+        repoFullNames[repo.name] = repo.full_name;
 
         if (!mostStarredRepo || stars > mostStarredRepo.stars) {
-            mostStarredRepo = { name: repo.name, stars };
+            mostStarredRepo = { name: repo.name, fullName: repo.full_name, stars };
         }
 
         if (repo.created_at) {
             if (!newestRepo || repo.created_at > newestRepo.createdAt) {
-                newestRepo = { name: repo.name, createdAt: repo.created_at };
+                newestRepo = { name: repo.name, fullName: repo.full_name, createdAt: repo.created_at };
             }
         }
 
@@ -412,13 +432,19 @@ export async function computeWrapStats(
             const created = new Date(repo.created_at).getTime();
             const pushed = new Date(repo.pushed_at).getTime();
             if (pushed - created < GRAVEYARD_THRESHOLD_MS) {
-                graveyardRepos.push(repo.name);
+                graveyardRepos.push({ name: repo.name, fullName: repo.full_name });
             }
         }
     }
 
     const babyRepoEntry = Object.entries(commitsByRepo).sort((a, b) => b[1] - a[1])[0];
-    const babyRepo = babyRepoEntry ? { name: babyRepoEntry[0], commits: babyRepoEntry[1] } : null;
+    const babyRepo = babyRepoEntry
+        ? {
+            name: babyRepoEntry[0],
+            fullName: repoFullNames[babyRepoEntry[0]] ?? babyRepoEntry[0],
+            commits: babyRepoEntry[1],
+        }
+        : null;
 
     // --- Archetype ---
     const reposCreatedThisYear = repos.filter(
@@ -490,6 +516,7 @@ export async function computeWrapStats(
             wipCount,
             oopsCount,
             longestMessage,
+            lastCommit,
         },
         volume: {
             totalCommits,

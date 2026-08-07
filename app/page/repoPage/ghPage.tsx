@@ -8,6 +8,9 @@ import RepoHighlightsCard from "./modalPage/repoHigh";
 import VolumeCard from "./modalPage/volume";
 import CommitPersonaCard from "./modalPage/commitPersona";
 import TopLanguageCard from "./modalPage/topLang";
+import RepoDashboard from "./repoDashboard";
+import RateLimitToast from "./rateLimitToast";
+import type { RepoStats } from "../../github/repoStats";
 
 type Repo = {
     id: number;
@@ -38,6 +41,7 @@ type WrapStats = {
         wipCount: number;
         oopsCount: number;
         longestMessage: string;
+        lastCommit: { message: string; date: string; repoName: string; fullName: string; sha: string } | null;
     };
     volume: {
         totalCommits: number;
@@ -48,12 +52,12 @@ type WrapStats = {
         longestStreak: number;
     };
     highlights: {
-        mostStarredRepo: { name: string; stars: number } | null;
-        babyRepo: { name: string; commits: number } | null;
-        newestRepo: { name: string; createdAt: string } | null;
+        mostStarredRepo: { name: string; fullName: string; stars: number } | null;
+        babyRepo: { name: string; fullName: string; commits: number } | null;
+        newestRepo: { name: string; fullName: string; createdAt: string } | null;
         totalStars: number;
         graveyardCount: number;
-        graveyardRepos: string[];
+        graveyardRepos: { name: string; fullName: string }[];
     };
     archetype: {
         primary: { title: string; description: string };
@@ -77,15 +81,47 @@ export default function Ghpage({
 }) {
     const [selected, setSelected] = useState<number | null>(null);
     const [query, setQuery] = useState("");
+    const [view, setView] = useState<"wrap" | "repo">("wrap");
+    const [repoStats, setRepoStats] = useState<RepoStats | null>(null);
+    const [loadingRepo, setLoadingRepo] = useState(false);
+    const [rateLimited, setRateLimited] = useState(false);
 
     const filteredRepos = repos.filter((repo) =>
         repo.full_name.toLowerCase().includes(query.toLowerCase())
     );
 
+    const selectedRepo = repos.find((repo) => repo.id === selected) ?? null;
+
+    async function handleContinue() {
+        if (!selectedRepo) return;
+
+        setView("repo");
+        setLoadingRepo(true);
+        setRepoStats(null);
+
+        try {
+            const res = await fetch(
+                `/api/repo-stats?repo=${encodeURIComponent(selectedRepo.full_name)}`
+            );
+            if (res.ok) {
+                setRepoStats(await res.json());
+            } else if (res.status === 429) {
+                setRateLimited(true);
+                setView("wrap");
+            } else {
+                console.error("Failed to fetch repo stats:", res.status);
+            }
+        } catch (err) {
+            console.error("Failed to fetch repo stats:", err);
+        } finally {
+            setLoadingRepo(false);
+        }
+    }
+
     return (
         <div className="flex h-screen overflow-hidden">
             {/* LEFT SECTION */}
-            <div className="flex flex-col items-start bg-gray-900 px-8 py-6 w-96 h-screen">
+            <div className="flex flex-col items-start bg-gray-900 px-8 py-6 w-96 h-screen animate-slide-in-left">
                 <div className="flex items-center gap-3 mb-4">
                     {user?.image && (
                         // eslint-disable-next-line @next/next/no-img-element
@@ -136,6 +172,7 @@ export default function Ghpage({
                     ))}
                 </div>
                 <button
+                    onClick={handleContinue}
                     disabled={selected === null}
                     className="mt-4 w-full h-9 rounded-md bg-gray-50 text-gray-900 font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-200 transition-colors duration-300"
                 >
@@ -143,34 +180,48 @@ export default function Ghpage({
                 </button>
             </div>
 
-            <div className="flex flex-col flex-1 min-h-0">
-                <div className="flex flex-1 gap-6 p-6 min-h-0">
-                    <TopLanguageCard stats={stats} />
+            {view === "repo" ? (
+                <RepoDashboard
+                    repoStats={repoStats}
+                    loading={loadingRepo}
+                    onBack={() => setView("wrap")}
+                />
+            ) : (
+                <>
+                    <div className="flex flex-col flex-1 min-h-0 min-w-0 animate-slide-in-bottom">
+                        <div className="flex flex-1 gap-6 p-6 min-h-0">
+                            <TopLanguageCard stats={stats} />
 
-                    <CommitPersonaCard stats={stats} />
+                            <CommitPersonaCard stats={stats} />
 
-                    <VolumeCard stats={stats} />
-                </div>
+                            <VolumeCard stats={stats} />
+                        </div>
 
-                <div className="flex flex-1 gap-6 px-6 pb-6 min-h-0">
-                    <RepoHighlightsCard stats={stats} />
+                        <div className="flex flex-1 gap-6 px-6 pb-6 min-h-0">
+                            <RepoHighlightsCard stats={stats} />
 
-                    <YourArchetypeCard stats={stats} />
+                            <YourArchetypeCard stats={stats} />
 
-                    <AchievementsCard stats={stats} />
-                </div>
-            </div>
-            <button type="button" className="flex flex-col items-center justify-center gap-12 
-                text-white text-3xl mr-5 my-6 rounded-md border border-gray-700 bg-gray-900 shadow-md
-                cursor-pointer transition duration-300 hover:bg-gray-700 hover:shadow-lg
-                active:scale-95 active:bg-gray-600 focus:outline-none focus-visible:ring-2
-                focus-visible:ring-gray-400 px-5"
-                style={{ fontFamily: "var(--font-anton)" }}
-            >
-                {"WRAPPED".split("").map((letter, i) => (
-                    <span key={i}>{letter}</span>
-                ))}
-            </button>
+                            <AchievementsCard stats={stats} />
+                        </div>
+                    </div>
+                    <button type="button" className="flex flex-col items-center justify-center gap-12
+                        text-white text-3xl mr-5 my-6 rounded-md border border-gray-700 bg-gray-900 shadow-md
+                        cursor-pointer transition duration-300 hover:bg-gray-700 hover:shadow-lg
+                        active:scale-95 active:bg-gray-600 focus:outline-none focus-visible:ring-2
+                        focus-visible:ring-gray-400 px-5 animate-slide-in-right"
+                        style={{ fontFamily: "var(--font-anton)" }}
+                    >
+                        {"WRAPPED".split("").map((letter, i) => (
+                            <span key={i}>{letter}</span>
+                        ))}
+                    </button>
+                </>
+            )}
+
+            {rateLimited && (
+                <RateLimitToast onDismiss={() => setRateLimited(false)} />
+            )}
         </div>
     );
 }

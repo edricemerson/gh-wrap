@@ -96,6 +96,23 @@ function formatHour(hour: number) {
     return `${h}${period}`;
 }
 
+function formatRelativeTime(dateStr: string): string {
+    const diffMs = Math.max(0, Date.now() - new Date(dateStr).getTime());
+    const diffMin = Math.round(diffMs / 60000);
+
+    if (diffMin < 1) return "just now";
+    if (diffMin < 60) return `${diffMin}m ago`;
+
+    const diffHr = Math.round(diffMin / 60);
+    if (diffHr < 24) return `${diffHr}h ago`;
+
+    const diffDay = Math.round(diffHr / 24);
+    if (diffDay < 30) return `${diffDay}d ago`;
+
+    const diffMonth = Math.round(diffDay / 30);
+    return `${diffMonth}mo ago`;
+}
+
 function chronotypeIcon(chronotype: string): IconName {
     if (chronotype === "Night Owl") return "moon";
     if (chronotype === "Early Bird") return "sun";
@@ -192,6 +209,36 @@ function CommitPersonaModal({
                     </div>
                 )}
 
+                {personality.lastCommit && (
+                    <a
+                        href={
+                            personality.lastCommit.sha
+                                ? `https://github.com/${personality.lastCommit.fullName}/commit/${personality.lastCommit.sha}`
+                                : `https://github.com/${personality.lastCommit.fullName}`
+                        }
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block mb-6 mt-4 -mx-3 p-3 border-t border-gray-800 rounded-md transition-colors duration-300 hover:bg-gray-800"
+                    >
+                        <div className="flex items-center justify-between mb-1">
+                            <div className="text-gray-400 text-xs">Last commit</div>
+                            <div className="text-gray-500 text-xs">
+                                {formatRelativeTime(personality.lastCommit.date)}
+                            </div>
+                        </div>
+                        <div className="text-gray-100 font-semibold text-sm leading-relaxed hover:underline">
+                            &quot;{personality.lastCommit.message.split("\n")[0]}&quot;
+                        </div>
+                        <div className="text-gray-500 text-xs mt-1">
+                            {personality.lastCommit.repoName} ·{" "}
+                            {new Date(personality.lastCommit.date).toLocaleString(undefined, {
+                                dateStyle: "medium",
+                                timeStyle: "short",
+                            })}
+                        </div>
+                    </a>
+                )}
+
                 <div className="grid grid-cols-3 gap-3 pt-4 border-t border-gray-800">
                     <div className="flex flex-col items-center text-center">
                         <PersonaIcon name="wrench" className="w-5 h-5 text-gray-300 mb-1" />
@@ -280,9 +327,19 @@ export default function CommitPersonaCard({ stats }: { stats: WrapStats | null }
                                 </div>
                             )}
                         </div>
-                        <div className="mt-auto text-gray-500 text-base pt-3 border-t border-gray-800">
-                            {stats.personality.fixCount} fixes · {stats.personality.wipCount} WIPs ·{" "}
-                            {stats.personality.oopsCount} oops
+                        <div className="mt-auto flex flex-col gap-1 pt-3 border-t border-gray-800">
+                            {stats.personality.lastCommit && (
+                                <div className="text-gray-400 text-base truncate">
+                                    Last commit: &quot;{stats.personality.lastCommit.message.split("\n")[0]}&quot;{" "}
+                                    <span className="text-gray-500">
+                                        ({formatRelativeTime(stats.personality.lastCommit.date)})
+                                    </span>
+                                </div>
+                            )}
+                            <div className="text-gray-500 text-base">
+                                {stats.personality.fixCount} fixes · {stats.personality.wipCount} WIPs ·{" "}
+                                {stats.personality.oopsCount} oops
+                            </div>
                         </div>
                     </div>
                 )}
